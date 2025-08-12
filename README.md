@@ -14,6 +14,7 @@ https://myanimelist.net/anime/53065/Sono_Bisque_Doll_wa_Koi_wo_Suru_Season_2
 https://myanimelist.net/anime/39486/Gintama__The_Final
 ```
 (каждое аниме на отдельной строчке)
+
 3) (опционально) Укажите в файле config.json максимальное количество загружаемых персонажей для каждого аниме.
 Стандартное значение: `"num_characters": 15`
 4) Запустите программу с помощью командной строки: 

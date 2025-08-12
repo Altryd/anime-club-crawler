@@ -1,4 +1,6 @@
 import os
+from typing import List
+import time
 import requests
 from bs4 import BeautifulSoup
 import json
@@ -8,6 +10,78 @@ from functools import wraps
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
+def safe_request_with_retry(
+        return_on_error=None,
+        retry_statuses: List[int] = [405],
+        max_retries: int = 2,
+        base_delay: float = 8.0,
+        backoff_factor: float = 5.0
+):
+    """
+    Декоратор для безопасного выполнения HTTP-запросов с повторными попытками.
+
+    Args:
+        return_on_error: Значение, возвращаемое при ошибке
+        retry_statuses: Список HTTP статусов для повтора
+        max_retries: Максимальное количество повторов
+        base_delay: Базовая задержка в секундах
+        backoff_factor: Множитель для увеличения задержки
+    """
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+
+            for attempt in range(max_retries + 1):
+                try:
+                    response = func(*args, **kwargs)
+
+                    # Проверяем статус код ответа
+                    if hasattr(response, 'status_code') and response.status_code in retry_statuses:
+                        url = args[0] if args else "неизвестный URL"
+
+                        if attempt < max_retries:
+                            delay = base_delay * (backoff_factor ** attempt)
+                            logging.warning(
+                                f"Получен статус {response.status_code} для {url}. "
+                                f"Повтор через {delay:.1f} сек (попытка {attempt + 1}/{max_retries + 1})"
+                            )
+                            time.sleep(delay)
+                            continue
+                        else:
+                            logging.error(
+                                f"Исчерпаны все попытки для {url}. "
+                                f"Последний статус: {response.status_code}"
+                            )
+                            return return_on_error
+
+                    # Если все OK, возвращаем ответ
+                    return response
+
+                except requests.exceptions.RequestException as e:
+                    last_exception = e
+                    url = args[0] if args else "неизвестный URL"
+
+                    if attempt < max_retries:
+                        delay = base_delay * (backoff_factor ** attempt)
+                        logging.warning(
+                            f"Ошибка запроса к {url}: {e}. "
+                            f"Повтор через {delay:.1f} сек (попытка {attempt + 1}/{max_retries + 1})"
+                        )
+                        time.sleep(delay)
+                        continue
+                    else:
+                        logging.error(f"Исчерпаны все попытки для {url}. Последняя ошибка: {e}")
+                        break
+
+            return return_on_error
+
+        return wrapper
+
+    return decorator
 
 
 def safe_request(return_on_error=None):
@@ -39,7 +113,7 @@ def load_config(config_file='config.json'):
         }
 
 
-@safe_request(return_on_error=(None, None))
+@safe_request_with_retry(return_on_error=(None, None))
 def create_save_folder(anime_url):
     """Создаёт папку с именем аниме на основе URL."""
     # Извлекаем имя аниме из ссылки на Characters & Staff
@@ -52,13 +126,16 @@ def create_save_folder(anime_url):
         anime_name = characters_link['href'].split('/')[-2].replace("_", " ").title().replace(" ", "_")
     else:
         anime_name = "unknown_anime"
-    save_folder = f"characters_images/{anime_name}"
+    main_folder = f"titles/{anime_name}"
+    scene_folder = f"{main_folder}/scene"
+    save_folder = f"{main_folder}/char"
     if not os.path.exists(save_folder):
+        os.makedirs(scene_folder)
         os.makedirs(save_folder)
     return save_folder, characters_link['href']
 
 
-@safe_request(return_on_error=None)
+@safe_request_with_retry(return_on_error=None)
 def extract_character_links(characters_url):
     """Извлекает ссылки на страницы персонажей."""
     response = requests.get(characters_url)
@@ -74,7 +151,7 @@ def extract_character_links(characters_url):
     return character_links
 
 
-@safe_request(return_on_error=None)
+@safe_request_with_retry(return_on_error=None)
 def download_character_image(character_url, save_folder):
     """Скачивает изображение персонажа и сохраняет его с именем персонажа."""
     session = requests.Session()
@@ -153,7 +230,10 @@ def main():
 
     for url in anime_urls:
         process_anime(url, num_characters)
+        logging.info(f"Characters from anime: {url} have been downloaded. Sleeping 5 seconds to avoid anti-DDoS measures")
+        time.sleep(5)
 
 
 if __name__ == "__main__":
     main()
+    input("Программа завершена, для выхода нажмите Enter")

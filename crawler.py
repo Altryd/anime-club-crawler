@@ -202,6 +202,7 @@ def process_anime(anime_url, num_characters):
 
     for character_url in character_links:
         download_character_image(character_url, save_folder)
+        time.sleep(1)
 
     save_links_to_file(character_links, anime_url, save_folder)
 
@@ -231,7 +232,7 @@ def main():
     for url in anime_urls:
         process_anime(url, num_characters)
         logging.info(f"Characters from anime: {url} have been downloaded. Sleeping 5 seconds to avoid anti-DDoS measures")
-        time.sleep(5)
+        time.sleep(20)
 
 
 if __name__ == "__main__":

@@ -41,3 +41,17 @@ pip install -r requirements.txt
 # Запустить
 python crawler.py
 ```
+
+
+## "Сборка" из исходного кода
+```bash
+# Создать виртуальное окружение
+python -m venv anime_env
+anime_env\Scripts\activate
+# Установить зависимости
+pip install -r requirements.txt
+# Установить PyInstaller
+pip install pyinstaller
+# Собрать
+pyinstaller --onefile --name "AnimeCharacterScraper" crawler.py
+```
